@@ -3,442 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador MDE 3D + Ortofoto RGB</title>
+    <title>Visualizador MDE & Ortofoto 3D</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Three.js e OrbitControls -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background-color: #0f172a; }
         #canvas-container { width: 100vw; height: 100vh; display: block; }
-        /* Custom scrollbar for control panel */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, 1); }
     </style>
 </head>
 <body class="bg-slate-900 text-white select-none">
 
-    <!-- Painel Lateral de Controles -->
-    <div class="absolute top-4 left-4 z-10 bg-slate-800/85 backdrop-blur-md p-5 rounded-2xl shadow-2xl border border-slate-700 max-w-sm w-full max-h-[92vh] overflow-y-auto">
+    <!-- Interface -->
+    <div class="absolute top-4 left-4 z-10 bg-slate-800/90 backdrop-blur-md p-5 rounded-2xl shadow-2xl border border-slate-700 max-w-sm w-full">
         <h1 class="text-xl font-bold text-amber-400 flex items-center gap-2">
-            <span>🚁</span> MDE + Ortofoto RGB
+            <span>⛏️</span> Visualizador MDE & Ortofoto
         </h1>
-        <p class="text-xs text-slate-400 mt-1">Carregue a imagem do MDE (Alturas) e a Ortofoto RGB do voo de drone para sobrepor no modelo 3D.</p>
+        <p class="text-xs text-slate-400 mt-1">Carregue dados do drone para visualizar em 3D.</p>
         
-        <!-- Upload MDE Raster -->
-        <div class="mt-4 p-3 bg-slate-900/60 rounded-xl border border-dashed border-slate-600">
-            <label class="block text-xs font-semibold text-slate-300 mb-1">1. MDE / DEM (Relevo Z)</label>
-            <input type="file" id="mde-input" accept="image/*" class="block w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer"/>
-            <span class="text-[10px] text-slate-500 mt-1 block">Tons de cinza: escuro (cota baixa) → claro (cota alta)</span>
-        </div>
-
-        <!-- Upload Ortofoto RGB -->
-        <div class="mt-3 p-3 bg-slate-900/60 rounded-xl border border-dashed border-emerald-600/60">
-            <label class="block text-xs font-semibold text-emerald-400 mb-1">2. Ortofotomosaico RGB (Textura)</label>
-            <input type="file" id="ortho-input" accept="image/*" class="block w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"/>
-            <span class="text-[10px] text-slate-500 mt-1 block">Foto aérea colorida exportada na mesma extensão</span>
-        </div>
-
         <div class="mt-4 space-y-3">
-            <!-- Exacerbação Vertical -->
             <div>
-                <div class="flex justify-between items-center text-xs font-semibold text-slate-300">
-                    <label for="z-scale">Exacerbação Vertical (Escala Z)</label>
-                    <span id="z-scale-val" class="text-amber-400 font-bold">1.0x</span>
-                </div>
-                <input type="range" id="z-scale" min="0.1" max="5.0" step="0.1" value="1.0" class="w-full accent-amber-500 mt-1 cursor-pointer" oninput="updateZScale(this.value)">
+                <label class="text-xs font-semibold text-slate-300 block mb-1">1. Carregar MDE / DEM (Elevação)</label>
+                <input type="file" id="mde-file" accept="image/*" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer w-full">
             </div>
 
-            <!-- Modos de Renderização (Sombreamento / Malha) -->
             <div>
-                <label class="text-xs font-semibold text-slate-300">Modo de Geometria</label>
+                <label class="text-xs font-semibold text-slate-300 block mb-1">2. Carregar Ortofoto RGB (Foto)</label>
+                <input type="file" id="ortho-file" accept="image/*" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer w-full">
+            </div>
+
+            <div>
+                <label class="text-xs font-semibold text-slate-300">Modo de Exibição</label>
                 <div class="grid grid-cols-2 gap-2 mt-1">
-                    <button id="btn-shaded" onclick="setRenderMode('shaded')" class="py-2 px-3 text-xs font-medium bg-amber-600 hover:bg-amber-500 rounded-lg transition shadow">Sombreamento</button>
-                    <button id="btn-wireframe" onclick="setRenderMode('wireframe')" class="py-2 px-3 text-xs font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow">Malha (Wireframe)</button>
+                    <button id="btn-texture" onclick="setTextureMode('texture')" class="py-2 px-3 text-xs font-medium bg-slate-700 text-slate-400 rounded-lg opacity-50 cursor-not-allowed" disabled>Ortofoto RGB</button>
+                    <button id="btn-topo" onclick="setTextureMode('topo')" class="py-2 px-3 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow">Topografia</button>
                 </div>
             </div>
 
-            <!-- Esquema de Cores e Textura -->
             <div>
-                <label class="text-xs font-semibold text-slate-300">Modo de Textura / Cores</label>
-                <div class="grid grid-cols-3 gap-1.5 mt-1">
-                    <button id="btn-palette-rgb" onclick="setColorPalette('rgb')" class="py-2 px-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow">Ortofoto RGB</button>
-                    <button id="btn-palette-topo" onclick="setColorPalette('topo')" class="py-2 px-1 text-[11px] font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow">Topografia</button>
-                    <button id="btn-palette-heat" onclick="setColorPalette('heat')" class="py-2 px-1 text-[11px] font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow">Teor / Heatmap</button>
+                <div class="flex justify-between items-center">
+                    <label class="text-xs font-semibold text-slate-300">Escala Vertical (Z)</label>
+                    <span id="z-scale-val" class="text-xs text-amber-400 font-bold">1.0x</span>
                 </div>
+                <input type="range" id="z-scale" min="0.1" max="5" step="0.1" value="1" oninput="updateZScale(this.value)" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mt-2">
             </div>
 
-            <!-- Resumo das Cotas -->
-            <div class="pt-3 border-t border-slate-700 flex justify-between items-center text-xs text-slate-400">
-                <span>Cota Máx: <strong class="text-white" id="max-elev">+150m</strong></span>
-                <span>Cota Mín: <strong class="text-amber-400" id="min-elev">-80m</strong></span>
-            </div>
-            
             <button onclick="resetCamera()" class="w-full mt-2 py-2 text-xs font-semibold bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-200">
                 Redefinir Câmera
             </button>
         </div>
     </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-xs shadow-xl transition-opacity duration-300 opacity-0 pointer-events-none">
-        Ação realizada com sucesso
-    </div>
-
+    <div id="toast" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-xs shadow-xl transition-opacity duration-300 opacity-0 pointer-events-none"></div>
     <div id="canvas-container"></div>
 
     <script>
-        let scene, camera, renderer, controls;
-        let terrainMesh;
-        let geometry;
-        let currentMode = 'shaded';
-        let currentPalette = 'topo'; // Padrão inicial
-        
-        // Configurações do terreno 3D
-        const terrainSize = 200;
-        let gridSegments = 160;
-        let baseHeights = [];
-        let currentZScale = 1.0;
-        let minElevCalculated = -80, maxElevCalculated = 150;
-
-        // Textura da ortofoto
-        let loadedOrthoTexture = null;
+        let scene, camera, renderer, controls, terrainMesh, geometry, rawHeights = [];
+        let orthoTexture = null;
+        let currentMode = 'topo';
+        const terrainSize = 200, segments = 120;
 
         function init() {
-            const container = document.getElementById('canvas-container');
+            if (typeof THREE === 'undefined') {
+                alert('Erro: A biblioteca Three.js não pôde ser carregada. Verifique se possui bloqueadores de anúncios ativos.');
+                return;
+            }
 
-            // Configuração da Cena
+            const container = document.getElementById('canvas-container');
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0f172a);
-            scene.fog = new THREE.FogExp2(0x0f172a, 0.002);
 
-            // Configuração da Câmera
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(150, 120, 150);
 
-            // Configuração do Renderizador
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // OrbitControls
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.maxPolarAngle = Math.PI / 2 - 0.02;
 
-            // Iluminação
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
-
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
             dirLight.position.set(100, 200, 100);
             scene.add(dirLight);
 
-            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 0.35);
-            hemiLight.position.set(0, 200, 0);
-            scene.add(hemiLight);
-
-            // Grid Auxiliar
-            const gridHelper = new THREE.GridHelper(300, 30, 0x475569, 0x334155);
-            gridHelper.position.y = -60;
-            scene.add(gridHelper);
-
-            // Terreno Sintético Inicial
-            createSyntheticTerrain();
-
-            // Event Listeners
+            createDefaultTerrain();
+            
+            document.getElementById('mde-file').addEventListener('change', handleMDEUpload);
+            document.getElementById('ortho-file').addEventListener('change', handleOrthoUpload);
             window.addEventListener('resize', onWindowResize);
-            document.getElementById('mde-input').addEventListener('change', handleMdeUpload);
-            document.getElementById('ortho-input').addEventListener('change', handleOrthoUpload);
-
+            
             animate();
         }
 
-        function createSyntheticTerrain() {
-            baseHeights = [];
+        function createDefaultTerrain() {
+            if(terrainMesh) scene.remove(terrainMesh);
+            geometry = new THREE.PlaneGeometry(terrainSize, terrainSize, segments, segments);
+            geometry.rotateX(-Math.PI / 2);
             
-            for (let i = 0; i <= gridSegments; i++) {
-                for (let j = 0; j <= gridSegments; j++) {
-                    const x = (i / gridSegments - 0.5) * terrainSize;
-                    const z = (j / gridSegments - 0.5) * terrainSize;
-
-                    let y = Math.sin(x * 0.03) * Math.cos(z * 0.03) * 15 + Math.sin(x * 0.08) * 5;
-                    const distFromCenter = Math.sqrt(x * x + z * z);
-                    if (distFromCenter < 50) {
-                        y -= Math.cos((distFromCenter / 50) * (Math.PI / 2)) * 45;
-                    }
-                    const distFromDump = Math.sqrt((x - 60) * (x - 60) + (z - 50) * (z - 50));
-                    if (distFromDump < 35) {
-                        y += Math.cos((distFromDump / 35) * (Math.PI / 2)) * 30;
-                    }
-                    baseHeights.push(y);
-                }
-            }
-            buildMeshFromHeights();
+            const material = new THREE.MeshStandardMaterial({ color: 0x334155, wireframe: true });
+            terrainMesh = new THREE.Mesh(geometry, material);
+            scene.add(terrainMesh);
         }
 
-        // Processa o upload do arquivo MDE (Escala de cinza -> Altura Z)
-        function handleMdeUpload(e) {
+        function handleMDEUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = segments + 1;
+                canvas.height = segments + 1;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    processMdeImage(img);
-                    showToast("Relevo MDE aplicado com sucesso!");
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function processMdeImage(img) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // Resolução de amostragem da malha
-            const res = Math.min(Math.max(img.width, img.height), 180);
-            gridSegments = res - 1;
-
-            canvas.width = res;
-            canvas.height = res;
-
-            ctx.drawImage(img, 0, 0, res, res);
-            const imgData = ctx.getImageData(0, 0, res, res).data;
-
-            baseHeights = [];
-            let minH = Infinity, maxH = -Infinity;
-
-            for (let j = 0; j < res; j++) {
-                for (let i = 0; i < res; i++) {
-                    const idx = (j * res + i) * 4;
-                    const r = imgData[idx];
-                    const g = imgData[idx + 1];
-                    const b = imgData[idx + 2];
-
-                    // Luminância do pixel
-                    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                    
-                    // Escala MDE
-                    const height = ((gray / 255) * 200) - 50;
-
-                    baseHeights.push(height);
-
-                    if (height < minH) minH = height;
-                    if (height > maxH) maxH = height;
+                rawHeights = [];
+                const pos = geometry.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+                    const val = (r + g + b) / 3;
+                    const h = (val / 255) * 50 - 25;
+                    rawHeights.push(h);
+                    pos.setY(i, h);
                 }
-            }
-
-            minElevCalculated = Math.round(minH);
-            maxElevCalculated = Math.round(maxH);
-
-            buildMeshFromHeights();
+                geometry.computeVertexNormals();
+                pos.needsUpdate = true;
+                applyColorPalette();
+                showToast("MDE Carregado com Sucesso!");
+            };
+            img.src = URL.createObjectURL(file);
         }
 
-        // Processa o upload da Ortofoto RGB (Textura Fotorrealista)
         function handleOrthoUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    const textureLoader = new THREE.TextureLoader();
-                    textureLoader.load(event.target.result, function(texture) {
-                        loadedOrthoTexture = texture;
-                        loadedOrthoTexture.generateMipmaps = true;
-                        loadedOrthoTexture.minFilter = THREE.LinearMipmapLinearFilter;
-                        
-                        // Muda automaticamente para o modo de cor RGB ao carregar
-                        setColorPalette('rgb');
-                        showToast("Ortofoto RGB mapeada no terreno!");
-                    });
-                };
-                img.src = event.target.result;
+                new THREE.TextureLoader().load(event.target.result, (tex) => {
+                    orthoTexture = tex;
+                    const btn = document.getElementById('btn-texture');
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-700');
+                    btn.classList.add('bg-blue-600', 'hover:bg-blue-500', 'text-white');
+                    setTextureMode('texture');
+                    showToast("Ortofoto Carregada!");
+                });
             };
             reader.readAsDataURL(file);
         }
 
-        function buildMeshFromHeights() {
-            if (terrainMesh) scene.remove(terrainMesh);
-
-            geometry = new THREE.PlaneGeometry(terrainSize, terrainSize, gridSegments, gridSegments);
-            geometry.rotateX(-Math.PI / 2);
-
-            const positionAttribute = geometry.attributes.position;
-            const colors = [];
-
-            for (let i = 0; i < positionAttribute.count; i++) {
-                const y = baseHeights[i] * currentZScale;
-                positionAttribute.setY(i, y);
-
-                const color = getColorForElevation(y);
-                colors.push(color.r, color.g, color.b);
+        function applyColorPalette() {
+            if (currentMode === 'texture' && orthoTexture) {
+                terrainMesh.material = new THREE.MeshStandardMaterial({ map: orthoTexture, roughness: 0.6 });
+            } else {
+                const pos = geometry.attributes.position;
+                const colors = [];
+                for (let i = 0; i < pos.count; i++) {
+                    const y = pos.getY(i);
+                    const c = new THREE.Color();
+                    if (y < -10) c.setHex(0x1e293b);
+                    else if (y < 5) c.setHex(0x3f6212);
+                    else if (y < 20) c.setHex(0x854d0e);
+                    else c.setHex(0xd1d5db);
+                    colors.push(c.r, c.g, c.b);
+                }
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                terrainMesh.material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true });
             }
-
-            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-            geometry.computeVertexNormals();
-
-            // Configuração do Material
-            const material = createMaterialForCurrentMode();
-
-            terrainMesh = new THREE.Mesh(geometry, material);
-            scene.add(terrainMesh);
-
-            // Atualiza indicadores de elevação na interface
-            document.getElementById('max-elev').innerText = `+${Math.round(maxElevCalculated * currentZScale)}m`;
-            document.getElementById('min-elev').innerText = `${Math.round(minElevCalculated * currentZScale)}m`;
         }
 
-        function createMaterialForCurrentMode() {
-            const isRgb = (currentPalette === 'rgb' && loadedOrthoTexture !== null);
-            
-            return new THREE.MeshStandardMaterial({
-                map: isRgb ? loadedOrthoTexture : null,
-                vertexColors: !isRgb, // Se estiver usando ortofoto RGB, desativa vertexColors
-                color: isRgb ? 0xffffff : undefined,
-                roughness: 0.7,
-                metalness: 0.05,
-                wireframe: (currentMode === 'wireframe'),
-                flatShading: !isRgb // Suaviza sombreamento quando usando imagem fotográfica
-            });
+        function setTextureMode(mode) {
+            currentMode = mode;
+            applyColorPalette();
         }
 
         function updateZScale(val) {
-            currentZScale = parseFloat(val);
-            document.getElementById('z-scale-val').innerText = `${currentZScale.toFixed(1)}x`;
-
-            if (!geometry) return;
-
-            const positionAttribute = geometry.attributes.position;
-            for (let i = 0; i < positionAttribute.count; i++) {
-                positionAttribute.setY(i, baseHeights[i] * currentZScale);
+            document.getElementById('z-scale-val').innerText = parseFloat(val).toFixed(1) + 'x';
+            if (!rawHeights.length) return;
+            const pos = geometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                pos.setY(i, rawHeights[i] * val);
             }
-            
-            positionAttribute.needsUpdate = true;
             geometry.computeVertexNormals();
-
-            if (currentPalette !== 'rgb') {
-                updateTerrainColors();
-            }
-
-            document.getElementById('max-elev').innerText = `+${Math.round(maxElevCalculated * currentZScale)}m`;
-            document.getElementById('min-elev').innerText = `${Math.round(minElevCalculated * currentZScale)}m`;
-        }
-
-        function getColorForElevation(elevation) {
-            const color = new THREE.Color();
-            
-            if (currentPalette === 'topo') {
-                if (elevation < -20) {
-                    color.setHex(0x1e293b); // Cava / Cota Profunda
-                } else if (elevation < 10) {
-                    color.setHex(0x334155); // Talude da Cava
-                } else if (elevation < 35) {
-                    color.setHex(0x3f6212); // Vegetação / Platô Baixo
-                } else if (elevation < 70) {
-                    color.setHex(0x854d0e); // Solo Exposto / Platô Alto
-                } else {
-                    color.setHex(0xe2e8f0); // Cume / Pilha de Estéril
-                }
-            } else {
-                // Paleta Gradiente Térmico / HSL
-                const minRange = -50 * currentZScale;
-                const maxRange = 150 * currentZScale;
-                const normalized = Math.min(Math.max((elevation - minRange) / (maxRange - minRange), 0), 1);
-                color.setHSL((1 - normalized) * 0.7, 1.0, 0.5);
-            }
-            
-            return color;
-        }
-
-        function updateTerrainColors() {
-            if (!geometry) return;
-            const positionAttribute = geometry.attributes.position;
-            const colorAttribute = geometry.getAttribute('color');
-
-            for (let i = 0; i < positionAttribute.count; i++) {
-                const y = positionAttribute.getY(i);
-                const color = getColorForElevation(y);
-                colorAttribute.setXYZ(i, color.r, color.g, color.b);
-            }
-            colorAttribute.needsUpdate = true;
-        }
-
-        function setColorPalette(palette) {
-            if (palette === 'rgb' && !loadedOrthoTexture) {
-                showToast("Por favor, envie um Ortofotomosaico RGB primeiro!");
-                return;
-            }
-
-            currentPalette = palette;
-
-            if (terrainMesh) {
-                terrainMesh.material = createMaterialForCurrentMode();
-                if (palette !== 'rgb') {
-                    updateTerrainColors();
-                }
-            }
-
-            // Atualiza botões
-            document.getElementById('btn-palette-rgb').className = palette === 'rgb' ? 
-                "py-2 px-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow" : 
-                "py-2 px-1 text-[11px] font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow";
-            
-            document.getElementById('btn-palette-topo').className = palette === 'topo' ? 
-                "py-2 px-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow" : 
-                "py-2 px-1 text-[11px] font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow";
-            
-            document.getElementById('btn-palette-heat').className = palette === 'heat' ? 
-                "py-2 px-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow" : 
-                "py-2 px-1 text-[11px] font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow";
-            
-            const nameMap = { rgb: 'Ortofoto RGB', topo: 'Topografia', heat: 'Teor / Heatmap' };
-            showToast(`Modo de Cor: ${nameMap[palette]}`);
-        }
-
-        function setRenderMode(mode) {
-            currentMode = mode;
-            if (terrainMesh) {
-                terrainMesh.material.wireframe = (mode === 'wireframe');
-            }
-
-            document.getElementById('btn-shaded').className = mode === 'shaded' ? 
-                "py-2 px-3 text-xs font-medium bg-amber-600 hover:bg-amber-500 rounded-lg transition shadow" : 
-                "py-2 px-3 text-xs font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow";
-            
-            document.getElementById('btn-wireframe').className = mode === 'wireframe' ? 
-                "py-2 px-3 text-xs font-medium bg-amber-600 hover:bg-amber-500 rounded-lg transition shadow" : 
-                "py-2 px-3 text-xs font-medium bg-slate-700 hover:bg-slate-600 rounded-lg transition shadow";
-            
-            showToast(`Visão: ${mode === 'shaded' ? 'Sombreamento' : 'Malha'}`);
+            pos.needsUpdate = true;
         }
 
         function resetCamera() {
             camera.position.set(150, 120, 150);
             controls.target.set(0, 0, 0);
             controls.update();
-            showToast("Câmera redefinida");
         }
 
-        function showToast(message) {
-            const toast = document.getElementById('toast');
-            toast.innerText = message;
-            toast.classList.remove('opacity-0');
-            toast.classList.add('opacity-100');
-            setTimeout(() => {
-                toast.classList.remove('opacity-100');
-                toast.classList.add('opacity-0');
-            }, 2200);
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.remove('opacity-0');
+            setTimeout(() => t.classList.add('opacity-0'), 2500);
         }
 
         function onWindowResize() {
