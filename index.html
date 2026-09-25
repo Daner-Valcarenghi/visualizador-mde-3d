@@ -126,22 +126,26 @@ app.init(container);       // initialize viewer
 
 // load the scene
 app.loadSceneFile("./data/index/scene.json", function (scene) {
-  // scene file has been loaded
   app.start();
 }, function (scene) {
-  // all relevant files have been loaded
+
+  // Configurações avançadas da câmera para permitir Zoom e Órbita de perto
+  if (app.camera) {
+    // Reduz o plano de corte próximo para evitar que o terreno suma ao aproximar
+    app.camera.near = 0.01;
+    app.camera.far = 100000;
+    app.camera.updateProjectionMatrix();
+  }
 
   if (app.controls) {
-    // Libera a distância mínima de aproximação (Zoom In)
-    app.controls.minDistance = 0.1;
+    // Permite aproximar o zoom quase até a superfície
+    app.controls.minDistance = 0.01;
+    app.controls.maxDistance = 100000;
 
-    // Libera a distância máxima de afastamento (Zoom Out)
-    app.controls.maxDistance = 50000;
-
-    // Libera a rotação vertical até o nível do solo
+    // Permite girar a câmera em todas as direções verticais
     app.controls.maxPolarAngle = Math.PI;
 
-    // Atualiza as configurações de controle
+    // Atualiza os controles
     app.controls.update();
   }
 });
