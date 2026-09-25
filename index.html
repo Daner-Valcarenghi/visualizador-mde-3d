@@ -113,7 +113,10 @@
 
 <script>
 Q3D.Config.allVisible = true;
-Q3D.Config.viewpoint = {lookAt:{x:262182.15780215745,y:6622690.938136487,z:387.67044830322266},pos:{x:262182.15780215745,y:6622564.03122335,z:514.5773614403784}};
+Q3D.Config.viewpoint = {
+  lookAt: {x: 262182.15780215745, y: 6622690.938136487, z: 387.67044830322266},
+  pos: {x: 262182.15780215745, y: 6622564.03122335, z: 514.5773614403784}
+};
 
 var container = document.getElementById("view"),
     app = Q3D.application,
@@ -128,6 +131,19 @@ app.loadSceneFile("./data/index/scene.json", function (scene) {
 }, function (scene) {
   // all relevant files have been loaded
 
+  if (app.controls) {
+    // Libera a distância mínima de aproximação (Zoom In)
+    app.controls.minDistance = 0.1;
+
+    // Libera a distância máxima de afastamento (Zoom Out)
+    app.controls.maxDistance = 50000;
+
+    // Libera a rotação vertical até o nível do solo
+    app.controls.maxPolarAngle = Math.PI;
+
+    // Atualiza as configurações de controle
+    app.controls.update();
+  }
 });
 </script>
 </body>
